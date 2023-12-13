@@ -50,7 +50,6 @@ def create_model(blob_service_client, folder):
         df = download_blob_to_file(blob_service_client, "csv", blob.name)
         merged_df = merge_two_df(merged_df, df)
     merged_df = merged_df.drop(columns="squareUUID", axis=1)
-    merged_df.to_csv("merged.csv", index=False)
     return merged_df
 
 def merge_two_df(df1, df2):
@@ -76,9 +75,6 @@ def merge_on_time(df):
     resampled_data.reset_index(inplace=True)
     for col in resampled_data.columns[1:]:
         resampled_data[col] = resampled_data[col].round(1)
-
-    # Print the result
-    resampled_data.to_csv("resampled_data.csv", index=False)
     return resampled_data
 
 def create_model_from_df(df):
@@ -94,7 +90,6 @@ def create_model_from_df(df):
         filtered_df[col] = filtered_df[col].interpolate(method='linear', limit_direction='both')
 
     filtered_df = filtered_df.drop(['timestamp'], axis=1)
-    filtered_df.to_csv("filtered_df.csv", index=False)
 
     # Convert the DataFrame to a NumPy array
     data_array = filtered_df.values
