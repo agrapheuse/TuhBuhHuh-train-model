@@ -1,6 +1,5 @@
 import logging
 import azure.functions as func
-import azure.functions as func
 from azure.storage.blob import BlobServiceClient
 from io import StringIO
 import pandas as pd
@@ -184,8 +183,17 @@ def create_model_from_df(df):
     return model
 
 def delete_previous_model(blob_service_client, folder):
-    # Delete the previous model in the specified folder
+    # Check if the previous model exists
     blob_client = blob_service_client.get_blob_client(container="model", blob=f"{folder}/model.pkl")
+
+    try:
+        blob_properties = blob_client.get_blob_properties()
+    except Exception as e:
+        # Handle the exception (e.g., blob not found)
+        logging.warning(f'Previous model not found. Error: {e}')
+        return
+
+    # Delete the previous model if it exists
     blob_client.delete_blob()
     logging.info('Previous model deleted.')
 
