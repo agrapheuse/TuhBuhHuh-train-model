@@ -6,14 +6,14 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from keras.models import Sequential
-from keras.layers import Conv1D, MaxPooling1D, Flatten, Dense
+from keras.layers import Dense, Conv1D, MaxPooling1D, Flatten
 from keras.callbacks import EarlyStopping
 import numpy as np
-import pickle
 
 app = func.FunctionApp()
 
-@app.schedule(schedule="0 0 * * 0", arg_name="myTimer", run_on_startup=True,
+@app.function_name(name="trainModel")
+@app.schedule(schedule="0 */15 * * * *", arg_name="myTimer", run_on_startup=True,
               use_monitor=False) 
 def trainModel(myTimer: func.TimerRequest) -> None:
     logging.info('Python timer trigger function executed.')
@@ -38,8 +38,8 @@ def trainModel(myTimer: func.TimerRequest) -> None:
             As soon as we have the function apps and the projects deployed and running continuously, we can
             change this function to take the latest data.
         """
-        # latest_data_df = get_latest(merged_df)
-        latest_data_df = temp_get_latest(merged_df)
+        latest_data_df = get_latest(merged_df)
+        # latest_data_df = temp_get_latest(merged_df)
 
         # If there is no recent data, skip the square
         if latest_data_df is None:
@@ -86,6 +86,7 @@ def list_folders(blob_service_client, container_name):
 # Download the merged.csv file for the square into a DataFrame
 def get_merged_df(blob_service_client, folder):
     df = download_blob_to_file(blob_service_client, "csv", f"{folder}/merged.csv")
+    print(df)
     return df
 
 def get_latest(df):
@@ -104,7 +105,7 @@ def get_latest(df):
     for i in range(10, df.shape[0], 10):
         temp_df = df_without_timestamp.iloc[-i:]
         count_avg = temp_df.count().mean()
-        if count_avg < i * 0.75:
+        if count_avg < i * 0.5:
             return temp_df
 
 def temp_get_latest(df):
@@ -184,24 +185,25 @@ def create_model_from_df(df):
 
 def delete_previous_model(blob_service_client, folder):
     # Check if the previous model exists
-    blob_client = blob_service_client.get_blob_client(container="model", blob=f"{folder}/model.pkl")
+    blob_client = blob_service_client.get_blob_client(container="model", blob=f"{folder}/model.json")
 
     try:
         blob_properties = blob_client.get_blob_properties()
+        # Delete the previous model if it exists
+        blob_client.delete_blob()
+        logging.info('Previous model deleted.')
     except Exception as e:
         # Handle the exception (e.g., blob not found)
         logging.warning(f'Previous model not found. Error: {e}')
-        return
-
-    # Delete the previous model if it exists
-    blob_client.delete_blob()
-    logging.info('Previous model deleted.')
+        return    
 
 def store_model(blob_service_client, model, folder):
-    # Store the new model in the specified folder as a pickle file
-    model_pickle_string = pickle.dumps(model)
+    # Save the model
+    model.save('model.h5')
 
-    blob_client = blob_service_client.get_blob_client(container="model", blob=f"{folder}/model.pkl")
-    blob_client.upload_blob(model_pickle_string, blob_type="BlockBlob")
+    # Get container
+    blob_client = blob_service_client.get_blob_client(container='model', blob=f"{folder}/model.h5")
 
-    logging.info('Model stored in blob storage.')
+    # Save file to blob
+    with open('model.h5', 'rb') as data:
+        blob_client.upload_blob(data, overwrite=True)
